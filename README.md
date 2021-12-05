@@ -14,8 +14,8 @@ To benchmark a baseline GPT-2 model with WMT and TyDiQA datasets on GPU, run
 
 ```shell
 python3 -m evaluation.eval \
-    --model_name_or_path gpt2 \
-    --eval_tasks wmt tydiqa_secondary \
+    --model_name_or_path bigscience/T0_3B \
+    --eval_tasks mrpc-confirmation mrpc-negative \
     --device cuda \
     --output_dir outputs
 ```

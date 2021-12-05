@@ -1,5 +1,3 @@
-# Module for any additional processing required for the TyDi QA dataset
-# HuggingFace dataset link: https://huggingface.co/datasets/piqa
 from datasets import load_dataset
 from jinja2 import Template
 from torch.utils.data import Dataset
@@ -79,7 +77,7 @@ class MRPCNegativeTask(AutoTask):
         is_first = True
 
         logger = get_logger()
-        for sample in tqdm(dataset[:100], desc=f"Evaluating {self.get_display_name()}"):
+        for sample in tqdm(dataset, desc=f"Evaluating {self.get_display_name()}"):
             def get_output(sample):
                 output = self.model.generate(
                     input_ids=sample["input_ids"].to(self.device),
@@ -125,6 +123,7 @@ class MRPCNegativeTask(AutoTask):
 
             consistency += int(confirmation_output.lower() != "yes")
 
+            # log the prompts and the outputs
             paraphrase_prompts.append(sample["prompt"])
             confirmation_prompts.append(sample_confirmation["prompt"])
 
