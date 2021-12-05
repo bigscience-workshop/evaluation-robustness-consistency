@@ -11,7 +11,7 @@ TEMPLATE_STD = Template(
     """
 Sentence 1: {{sent1}}
 Sentence 2: {{sent2}}
-Do these two sentences convey the same meaning? Yes or no?
+Do these two sentences express the same meaning? Yes or no?
     """
 )
 
@@ -19,7 +19,7 @@ TEMPLATE_NEG = Template(
     """
 Sentence 1: {{sent1}}
 Sentence 2: {{sent2}}
-Do these two sentences convey different meanings? No or yes?
+Do these two sentences express different meanings? Yes or no?
     """
 )
 
@@ -49,7 +49,7 @@ class MRPCDataset(Dataset):
                     "input_ids": inputs["input_ids"],
                     "attention_mask": inputs["attention_mask"],
                     "input_len": inputs["attention_mask"].shape[1],
-                    "label": ["No", "Yes"][sample["label"]],
+                    "label": ["Yes", "No"][1 - sample["label"]],
                 }
             )
 
@@ -75,6 +75,7 @@ class MRPCNegativeTask(AutoTask):
         neg_prompt_answers = []
         std_prompts = []
         neg_prompts = []
+        gold_standard = []
 
         is_first = True
 
@@ -107,7 +108,7 @@ class MRPCNegativeTask(AutoTask):
 
             # compute the performance and log the prompts and the outputs
             label = sample_std["label"]
-            label_match = int(label.lower() == predicted_answer_std.lower())
+            label_match = int(label.lower().strip() == predicted_answer_std.lower().strip())
             
             accuracy += label_match
             consistency += int(predicted_answer_std.lower() != predicted_answer_neg.lower())
@@ -117,12 +118,13 @@ class MRPCNegativeTask(AutoTask):
 
             std_prompt_answers.append(predicted_answer_std)
             neg_prompt_answers.append(predicted_answer_neg)
-
+            gold_standard.append(sample_std["label"])
         self.metrics = {
-            "substring_match": accuracy / len(dataset_std) * 100,
+            "accuracy": accuracy / len(dataset_std) * 100,
             "consistency": consistency / len(dataset_std) * 100,
             "std prompt": std_prompts,
             "neg prompt": neg_prompts,
             "std answer": std_prompt_answers,
-            "neg answer": neg_prompt_answers
+            "neg answer": neg_prompt_answers,
+            "gold standard": gold_standard
         }
