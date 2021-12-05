@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, set_seed
+from transformers import AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, set_seed
 
 import evaluation.tasks  # noqa: F401
 from evaluation.tasks.auto_task import AutoTask
@@ -63,8 +63,11 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(eval_args.tokenizer_name or eval_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-
-    model = AutoModelForCausalLM.from_pretrained(
+    if eval_args.model_name_or_path in ["bigscience/T0_3B", "bigscience/T0"]:
+        MODEL_TYPE = AutoModelForSeq2SeqLM
+    else:
+        MODEL_TYPE = AutoModelForCausalLM
+    model = MODEL_TYPE.from_pretrained(
         eval_args.model_name_or_path,
         pad_token_id=tokenizer.eos_token,
     )
