@@ -7,18 +7,21 @@ from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerFast
 
 from evaluation.models.loader import load_model
 from evaluation.utils.io import load_json, save_json
+from argparse import ArgumentParser
 
 
 class AutoTask(ABC):
     def __init__(
-        self,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerFast,
-        device: torch.device,
-        english_only: bool,
-        data_dir: Optional[str] = None,
+            self,
+            args: ArgumentParser,
+            model: PreTrainedModel,
+            tokenizer: PreTrainedTokenizerFast,
+            device: torch.device,
+            english_only: bool,
+            data_dir: Optional[str] = None,
     ):
         self.model = model
+        self.args = args
         self.tokenizer = tokenizer
         self.device = device
         self.metrics = {}
@@ -35,17 +38,19 @@ class AutoTask(ABC):
 
     @classmethod
     def from_task_name(
-        cls,
-        task_name: str,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizerFast,
-        device: torch.device,
-        english_only: bool,
-        data_dir: Optional[str] = None,
+            cls,
+            task_name: str,
+            args: ArgumentParser,
+            model: PreTrainedModel,
+            tokenizer: PreTrainedTokenizerFast,
+            device: torch.device,
+            english_only: bool,
+            data_dir: Optional[str] = None,
     ):
         task = cls._get_task(task_name)
         return task(
             model=model,
+            args=args,
             tokenizer=tokenizer,
             device=device,
             english_only=english_only,
@@ -54,13 +59,13 @@ class AutoTask(ABC):
 
     @classmethod
     def from_spec(
-        cls,
-        task_name: str,
-        model_name_or_path: str,
-        tokenizer_name: str,
-        device: torch.device,
-        english_only: bool,
-        data_dir: Optional[str] = None,
+            cls,
+            task_name: str,
+            model_name_or_path: str,
+            tokenizer_name: str,
+            device: torch.device,
+            english_only: bool,
+            data_dir: Optional[str] = None,
     ):
         task = cls._get_task(task_name)
         model = load_model(model_name_or_path)

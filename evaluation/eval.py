@@ -4,7 +4,15 @@ from datetime import datetime
 from typing import List, Optional
 
 import torch
-from transformers import AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, set_seed
+from transformers import AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, \
+    TrainingArguments, set_seed
+
+import sys
+
+sys.path.append('/home/infres/pcolombo/evaluation-robustness-consistency/evaluation/')
+sys.path.append('/home/infres/pcolombo/evaluation-robustness-consistency/')
+sys.path.append('/gpfswork/rech/tts/unm25jp/evaluation-robustness-consistency/')
+sys.path.append('/gpfswork/rech/tts/unm25jp/evaluation-robustness-consistency/evaluation/')
 
 import evaluation.tasks  # noqa: F401
 from evaluation.tasks.auto_task import AutoTask
@@ -31,6 +39,33 @@ class EvaluationArguments:
     english_only: Optional[bool] = field(default=True, metadata={"help": "Whether to run evaluation in English only."})
 
     data_dir: Optional[str] = field(default=None, metadata={"help": "Path to the local dataset folder"})
+
+    do_sample: Optional[bool] = field(default=False, metadata={"help": "Whether to use sampling instead of greedy."})
+    early_stopping: Optional[bool] = field(default=False,
+                                           metadata={"help": "Whether to stop when the correct number of sample"})
+    min_length: Optional[int] = field(
+        default=None, metadata={"help": "Of the generated sentence"}
+    )
+    num_beams: Optional[int] = field(
+        default=None, metadata={"help": "Number of sentences in the beam"}
+    )
+    temperature: Optional[float] = field(
+        default=None,
+        metadata={"help": "Temperature for sampling, makes no sens to be used without passing do_sample true"}
+    )
+    top_k: Optional[int] = field(
+        default=None, metadata={"help": "Number of highest probability vocabulary tokens to keep for top-k-filtering"}
+    )
+    top_p: Optional[float] = field(
+        default=None, metadata={"help": "Number of highest probability vocabulary tokens to keep for top-k-filtering"}
+    )
+    repetition_penalty: Optional[float] = field(
+        default=None, metadata={"help": "Repetition penalty for generating diverse beam search"}
+    )
+    length_penalty: Optional[float] = field(
+        default=None, metadata={
+            "help": "Repetition penalty for generating diverse longer sentence 1 no penalty >1 foster long sentences"}
+    )
 
 
 def main():
@@ -63,7 +98,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(eval_args.tokenizer_name or eval_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    if eval_args.model_name_or_path in ["bigscience/T0_3B", "bigscience/T0"]:
+    if "T0" in eval_args.model_name_or_path:  # in ["bigscience/T0_3B", "bigscience/T0"]:
         MODEL_TYPE = AutoModelForSeq2SeqLM
     else:
         MODEL_TYPE = AutoModelForCausalLM
@@ -74,6 +109,7 @@ def main():
     model.config.pad_token_id = model.config.eos_token_id
     model.resize_token_embeddings(len(tokenizer))
     model.to(device)
+    model.eval()
 
     # Exporting results
     tag = eval_args.tag or datetime.now().strftime("%y%m%d_%H%M%S")
@@ -85,6 +121,7 @@ def main():
         task = AutoTask.from_task_name(
             eval_task,
             model=model,
+            args=eval_args,
             tokenizer=tokenizer,
             device=device,
             english_only=eval_args.english_only,
