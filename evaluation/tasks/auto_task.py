@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerFast
 
 from evaluation.models.loader import load_model
 from evaluation.utils.io import load_json, save_json
+from evaluation.utils.log import get_logger
 from argparse import ArgumentParser
 
 
@@ -18,6 +19,8 @@ class AutoTask(ABC):
             tokenizer: PreTrainedTokenizerFast,
             device: torch.device,
             english_only: bool,
+            cache_dir: str,
+            force_output: Optional[bool] = False,
             data_dir: Optional[str] = None,
     ):
         self.model = model
@@ -26,6 +29,8 @@ class AutoTask(ABC):
         self.device = device
         self.metrics = {}
         self.task_config = self.load_task_args(english_only)
+        self.cache_dir = cache_dir
+        self.force_output = force_output
         self.data_dir = data_dir
 
     @classmethod
@@ -45,6 +50,8 @@ class AutoTask(ABC):
             tokenizer: PreTrainedTokenizerFast,
             device: torch.device,
             english_only: bool,
+            cache_dir: str,
+            force_output: Optional[bool] = False,
             data_dir: Optional[str] = None,
     ):
         task = cls._get_task(task_name)
@@ -54,6 +61,8 @@ class AutoTask(ABC):
             tokenizer=tokenizer,
             device=device,
             english_only=english_only,
+            cache_dir=cache_dir,
+            force_output=force_output,
             data_dir=data_dir,
         )
 
@@ -65,6 +74,9 @@ class AutoTask(ABC):
             tokenizer_name: str,
             device: torch.device,
             english_only: bool,
+            cache_dir: str,
+            args: ArgumentParser,
+            force_output: Optional[bool] = False,
             data_dir: Optional[str] = None,
     ):
         task = cls._get_task(task_name)
@@ -75,6 +87,9 @@ class AutoTask(ABC):
             tokenizer=tokenizer,
             device=device,
             english_only=english_only,
+            cache_dir=cache_dir,
+            args=args,
+            force_output=force_output,
             data_dir=data_dir,
         )
 
@@ -90,16 +105,39 @@ class AutoTask(ABC):
 
     @abstractmethod
     def evaluate(self) -> None:
-        pass
+        logger = get_logger()
+        if self.cache_exists() and not self.force_output:
+            logger.info("Loading metrics from cache. Set force_output=True to recalculate metrics.")
+            self.metrics = load_json(self.get_cached_filename())
+            return
 
     def train(self) -> None:
         # TODO: convert to `abstractmethod` once simple_benchmark is ready
         raise NotImplementedError
 
     def save_metrics(self, output_dir, logger=None) -> str:
-        output_filename = os.path.join(output_dir, f"{self.get_display_name()}.json")
+        output_filename = os.path.join(output_dir, self.get_output_filename())
         save_json(self.metrics, output_filename)
 
         if logger:
             logger.info(f"{self.get_display_name()}: result exported to {output_filename}")
         return output_filename
+
+    def get_output_filename(self) -> str:
+        return f"{self.get_display_name()}.json"''
+
+    def get_cached_filename(self) -> str:
+        cache_key = self.generate_cache_key()
+        return os.path.join(self.cache_dir, cache_key, self.get_output_filename())
+
+    def generate_cache_key(self) -> str:
+        return f"{self.model.config._name_or_path}_" \
+               f"t${self.args.temperature}_" \
+               f"rp${self.args.repetition_penalty}_" \
+               f"lp${self.args.length_penalty}_" \
+               f"ml${self.args.min_length}_" \
+               f"nb${self.args.num_beams}_" \
+               f"tk${self.args.top_k}"
+
+    def cache_exists(self) -> bool:
+        return os.path.exists(self.get_cached_filename())

@@ -32,6 +32,9 @@ class TemplateTask(AutoTask):
         Configs are read at initialization and available in dict form as self.task_config.
         For further details, refer to the AutoTask parent class in auto_task.py.
         """
+        # the parent method implement cache checking
+        super().evaluate()
+
         dataset = TemplateDataset()
         # NOTE: use torch.utils.data.DataLoader as needed
         for item in tqdm(dataset, desc=f"Evaluating {self.get_display_name()}"):

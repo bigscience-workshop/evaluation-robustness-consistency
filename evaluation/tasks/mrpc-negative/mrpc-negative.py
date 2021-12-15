@@ -65,6 +65,8 @@ class MRPCNegativeTask(AutoTask):
         return "mrpc-negative"
 
     def evaluate(self) -> None:
+        super().evaluate()
+
         dataset_std = MRPCDataset(self.tokenizer, TEMPLATE_STD)
         dataset_neg = MRPCDataset(self.tokenizer, TEMPLATE_NEG)
 

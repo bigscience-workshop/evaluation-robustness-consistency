@@ -66,6 +66,14 @@ class EvaluationArguments:
         default=None, metadata={
             "help": "Repetition penalty for generating diverse longer sentence 1 no penalty >1 foster long sentences"}
     )
+    cache_dir: Optional[str] = field(
+        default="./.cache",
+        metadata={"help": "Where do you want to cache outputs"},
+    )
+    force_output: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Force to re-output metrics if when there is a cached version"},
+    )
 
 
 def main():
@@ -126,6 +134,8 @@ def main():
             device=device,
             english_only=eval_args.english_only,
             data_dir=eval_args.data_dir,
+            cache_dir=eval_args.cache_dir,
+            force_output=eval_args.force_output,
         )
         set_seed(train_args.seed)
         task.evaluate()

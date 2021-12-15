@@ -64,6 +64,8 @@ class MRPCNegativeTask(AutoTask):
         return "mrpc-confirmation"
 
     def evaluate(self) -> None:
+        super().evaluate()
+
         dataset = MRPCDataset(self.tokenizer)
 
         accuracy = 0
