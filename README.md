@@ -16,8 +16,12 @@ To benchmark a baseline GPT-2 model with WMT and TyDiQA datasets on GPU, run
 python3 -m evaluation.eval \
     --model_name_or_path bigscience/T0_3B \
     --eval_tasks mrpc-confirmation mrpc-negative \
-    --device cuda \
     --output_dir outputs
+```
+
+To convert the json result to tsv for better readibility, do
+```
+python json2tsv.py outputs/xxxxx_xxxxx/mrpc-negative.json
 ```
 
 Note: For toxicity dataset, you have to download the dataset manually from Kaggle [here](https://www.kaggle.com/c/jigsaw-toxic-comment-classification-challenge/data) and also pass the `data_dir` argument to the folder.

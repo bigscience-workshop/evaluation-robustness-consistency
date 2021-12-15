@@ -87,18 +87,6 @@ class MRPCNegativeTask(AutoTask):
                         attention_mask=sample["attention_mask"].to(self.device),
                         max_length=min(sample["input_len"] * 2, 1024),
                         # hard-coded to 1024 since each model has diferent naming for max length
-                        min_length=self.args.min_length,
-                        do_sample=self.args.do_sample,  # need to be set to true not to use greedy sampling
-                        early_stopping=self.args.early_stopping,
-                        # whether to stop when num_beams sentences are generated
-                        num_beams=self.args.num_beams,
-                        temperature=self.args.temperature,  # lower than 1 conservative, greater than one diverse
-                        top_k=self.args.top_k,
-                        # number of highest probability vocabulary tokens to keep for top-k-filtering
-                        top_p=self.args.top_p,  #
-                        repetition_penalty=self.args.repetition_penalty,
-                        length_penalty=self.args.length_penalty  # 1 no penalty >1 foster long sentences
-
                     )
                     decoded_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
                 return decoded_output
