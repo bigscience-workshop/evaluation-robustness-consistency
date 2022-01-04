@@ -98,7 +98,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(eval_args.tokenizer_name or eval_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    if "T0" in eval_args.model_name_or_path:  # in ["bigscience/T0_3B", "bigscience/T0"]:
+    if ("t5" in eval_args.model_name_or_path.lower()) or "t0" in (eval_args.model_name_or_path.lower()): # in ["bigscience/T0_3B", "bigscience/T0"]:
         MODEL_TYPE = AutoModelForSeq2SeqLM
     else:
         MODEL_TYPE = AutoModelForCausalLM
