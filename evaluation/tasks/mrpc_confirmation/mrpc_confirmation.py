@@ -58,10 +58,10 @@ class MRPCDataset(Dataset):
         return self.items[index]
 
 
-class MRPCNegativeTask(AutoTask):
+class MRPCConfirmationTask(AutoTask):
     @staticmethod
     def get_display_name() -> str:
-        return "mrpc-confirmation"
+        return "mrpc_confirmation"
 
     def evaluate(self) -> None:
         dataset = MRPCDataset(self.tokenizer)
@@ -69,10 +69,7 @@ class MRPCNegativeTask(AutoTask):
         accuracy = 0
         consistency = 0
 
-        paraphrase_prompts = []
-        confirmation_prompts = []
-        paraphrase_prompt_answers = []
-        confirmation_prompt_answers = []
+        logs = []
 
         is_first = True
 
@@ -129,30 +126,17 @@ class MRPCNegativeTask(AutoTask):
             }
             confirmation_output = get_output(sample_confirmation)
 
-            if is_first:
-                is_first = False
-                log_msg = "Evaluation example for MRPC-Negative\n"
-
-                log_msg += "\nprompt#1 (Standard):\n" + sample["prompt"]
-                log_msg += "\nmodel output:\n" + paraphrase
-
-                log_msg += "\n\nprompt#2 (Negative):\n" + sample_confirmation["prompt"]
-                log_msg += "\nmodel output:\n" + confirmation_output
-                logger.info(log_msg)
-
-            consistency += int(confirmation_output.lower() != "yes")
+            consistency += int(confirmation_output.lower() == "yes")
 
             # log the prompts and the outputs
-            paraphrase_prompts.append(sample["prompt"])
-            confirmation_prompts.append(sample_confirmation["prompt"])
-
-            paraphrase_prompt_answers.append(paraphrase)
-            confirmation_prompt_answers.append(confirmation_output)
+            logs.append({
+                "paraphrase prompt": sample["prompt"],
+                "paraphrase": paraphrase,
+                "confirmation promt": sample_confirmation["prompt"],
+                "confirmation answer": confirmation_output
+                })
 
         self.metrics = {
             "consistency": consistency / len(dataset) * 100,
-            "para prompts": paraphrase_prompts,
-            "conf prompts": confirmation_prompts,
-            "para answers": paraphrase_prompt_answers,
-            "conf answers": confirmation_prompt_answers
+            "output log": logs
         }

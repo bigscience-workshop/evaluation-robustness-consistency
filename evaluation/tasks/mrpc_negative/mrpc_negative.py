@@ -58,6 +58,17 @@ class MRPCDataset(Dataset):
     def __getitem__(self, index):
         return self.items[index]
 
+def get_output(task, sample):
+    with torch.no_grad():
+        output = task.model.generate(
+            input_ids=sample["input_ids"].to(task.device),
+            attention_mask=sample["attention_mask"].to(task.device),
+            max_length=min(sample["input_len"] * 2, 1024),
+            # hard-coded to 1024 since each model has diferent naming for max length
+        )
+        decoded_output = task.tokenizer.decode(output[0], skip_special_tokens=True)
+    return decoded_output
+
 
 class MRPCNegativeTask(AutoTask):
     @staticmethod
@@ -70,61 +81,34 @@ class MRPCNegativeTask(AutoTask):
 
         accuracy = 0
         consistency = 0
-        std_prompt_answers = []
-        neg_prompt_answers = []
-        std_prompts = []
-        neg_prompts = []
-        gold_standard = []
-
-        is_first = True
+        logs = []
 
         logger = get_logger()
         for sample_std, sample_neg in tqdm(zip(dataset_std, dataset_neg), desc=f"Evaluating {self.get_display_name()}"):
-            def get_output(sample):
-                with torch.no_grad():
-                    output = self.model.generate(
-                        input_ids=sample["input_ids"].to(self.device),
-                        attention_mask=sample["attention_mask"].to(self.device),
-                        max_length=min(sample["input_len"] * 2, 1024),
-                        # hard-coded to 1024 since each model has diferent naming for max length
-                    )
-                    decoded_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
-                return decoded_output
-
-            predicted_answer_std = get_output(sample_std)
-            predicted_answer_neg = get_output(sample_neg)
-
-            if is_first:
-                is_first = False
-                log_msg = "Evaluation example for MRPC-Negative\n"
-
-                log_msg += "\nprompt#1 (Standard):\n" + sample_std["prompt"]
-                log_msg += "\nmodel output:\n" + predicted_answer_std
-                log_msg += "\nexpected output:\n" + sample_std["label"]
-
-                log_msg += "\n\nprompt#2 (Negative):\n" + sample_neg["prompt"]
-                log_msg += "\nmodel output:\n" + predicted_answer_neg
-                logger.info(log_msg)
+            predicted_answer_std = get_output(self, sample_std)
+            predicted_answer_neg = get_output(self, sample_neg)
 
             # compute the performance and log the prompts and the outputs
             label = sample_std["label"]
             label_match = int(label.lower().strip() == predicted_answer_std.lower().strip())
 
             accuracy += label_match
+            # consistent if their answers are different
             consistency += int(predicted_answer_std.lower() != predicted_answer_neg.lower())
 
-            std_prompts.append(sample_std["prompt"])
-            neg_prompts.append(sample_neg["prompt"])
+            logs.append({
+                "standard prompt": sample_std["prompt"],
+                "standard answer": predicted_answer_std,
+                "negative prompt": sample_neg["prompt"],
+                "negative answer": predicted_answer_neg,
+                "gold label": sample_std["label"]
+                })
 
-            std_prompt_answers.append(predicted_answer_std)
-            neg_prompt_answers.append(predicted_answer_neg)
-            gold_standard.append(sample_std["label"])
+            if len(logs) == 1:
+                logger.info(logs[0])
+        
         self.metrics = {
-            "accuracy": accuracy / len(dataset_std) * 100,
-            "consistency": consistency / len(dataset_std) * 100,
-            "std prompt": std_prompts,
-            "neg prompt": neg_prompts,
-            "std answer": std_prompt_answers,
-            "neg answer": neg_prompt_answers,
-            "gold standard": gold_standard
+            "0_accuracy": accuracy / len(dataset_std) * 100,
+            "1_consistency": consistency / len(dataset_std) * 100,
+            "2_output log": logs,
         }
