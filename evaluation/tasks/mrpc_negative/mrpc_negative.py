@@ -7,6 +7,7 @@ import difflib
 
 from evaluation.tasks.auto_task import AutoTask
 from evaluation.utils.log import get_logger
+import json
 
 TEMPLATE_STD = Template(
     """
@@ -93,13 +94,20 @@ def extract_label_list_id(task, dataset):
 
 
 class MRPCNegativeTask(AutoTask):
+    TEMPLATE_1 = TEMPLATE_STD
+    TEMPLATE_2 = TEMPLATE_NEG
+    
+    def is_consistent(self, answer_1, answer_2):
+      # negative prompt, so consistent if the answer is different
+      return answer_1 != answer_2
+
     @staticmethod
     def get_display_name() -> str:
         return "mrpc_negative"
 
     def evaluate(self) -> None:
-        dataset_std = MRPCDataset(self.tokenizer, TEMPLATE_STD)
-        dataset_neg = MRPCDataset(self.tokenizer, TEMPLATE_NEG)
+        dataset_std = MRPCDataset(self.tokenizer, self.TEMPLATE_1)
+        dataset_neg = MRPCDataset(self.tokenizer, self.TEMPLATE_2)
 
         accuracy = 0
         consistency = 0
@@ -126,18 +134,20 @@ class MRPCNegativeTask(AutoTask):
             label_match = int(label == predicted_answer_std)
             accuracy += label_match
             # consistent if their answers are different
-            consistency += int(predicted_answer_std.lower() != predicted_answer_neg.lower())
+            consistency += int(self.is_consistent(predicted_answer_std,predicted_answer_neg))
 
             logs.append({
-                "standard prompt": sample_std["prompt"],
-                "standard answer": predicted_answer_std,
-                "negative prompt": sample_neg["prompt"],
-                "negative answer": predicted_answer_neg,
-                "gold label": sample_std["label"]
+                "prompt 1": sample_std["prompt"],
+                "prompt 1 answer": predicted_answer_std,
+                "prompt 2": sample_neg["prompt"],
+                "prompt 2 answer": predicted_answer_neg,
+                "gold label": sample_std["label"],
+                "is consistent?": int(self.is_consistent(predicted_answer_std,predicted_answer_neg))
                 })
 
             if len(logs) == 1:
-                logger.info(logs[0])
+                logger.info("Evaluation example:\n{}".format(json.dumps(logs[0], indent=4)))
+                # print(json.dumps(logs[0], indent=4))
         
         self.metrics = {
             "0_accuracy": accuracy / len(dataset_std) * 100,
