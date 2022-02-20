@@ -8,7 +8,7 @@ import difflib
 from evaluation.tasks.auto_task import AutoTask
 from evaluation.utils.log import get_logger
 
-TEMPLATE_STD = Template(
+TEMPLATE = Template(
     """
 Sentence 1: {{sent1}}
 Sentence 2: {{sent2}}
@@ -16,13 +16,116 @@ Do Sentence 1 and Sentence 2 convey the same meaning? Yes or No?
     """
 )
 
-TEMPLATE_NEG = Template(
-    """
-Sentence 1: {{sent1}}
-Sentence 2: {{sent2}}
-Do Sentence 1 and Sentence 2 express a different meaning? Yes or No?
-    """
-)
+
+class WMTEnglishDataset(Dataset):
+    def __init__(self, tokenizer, pair="kk-en"):
+        super().__init__()
+        assert "en" in pair, f"Expected `pair` to contain English, but got {pair} instead"
+        wmt = load_dataset("wmt19", pair, split="validation")["translation"]
+
+        self.items = []
+        for sample in wmt:
+            prompt = TEMPLATE.render(
+                sent1=sample["premise"],
+                sent2=sample["hypothesis"],
+            ).strip()
+            # Tokenize and construct this sample
+            inputs = tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+            )
+            self.items.append(
+                {"sentence1": sample["sentence1"],
+                 "sentence2": sample["sentence2"],
+                 "prompt": prompt,
+                 "input_ids": inputs["input_ids"],
+                 "attention_mask": inputs["attention_mask"],
+                 "input_len": inputs["attention_mask"].shape[1],
+                 "label": ["Yes"],  # TODO voir les details
+                 }
+            )
+
+        # TODO : should we build some negative random pick?
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, index):
+        return self.input_ids[index]
+
+
+class MNLIDataset(Dataset):
+    def __init__(self, tokenizer, TEMPLATE):
+        super().__init__()
+        mnli_mismatched = load_dataset("glue", "mnli_mismatched", split="validation")
+        mnli_matched = load_dataset("glue", "mnli_matched", split="validation")
+        self.items = []
+        for index, ds in enumerate([mnli_mismatched, mnli_matched]):
+            for sample in ds:
+                prompt = TEMPLATE.render(
+                    sent1=sample["premise"],
+                    sent2=sample["hypothesis"],
+                ).strip()
+
+                # Tokenize and construct this sample
+                inputs = tokenizer(
+                    prompt,
+                    return_tensors="pt",
+                    truncation=True,
+                )
+                self.items.append(
+                    {"sentence1": sample["sentence1"],
+                     "sentence2": sample["sentence2"],
+                     "prompt": prompt,
+                     "input_ids": inputs["input_ids"],
+                     "attention_mask": inputs["attention_mask"],
+                     "input_len": inputs["attention_mask"].shape[1],
+                     "label": ["Yes", "No"][index],  # TODO voir les details
+                     }
+                )
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+
+class RTEDataset(Dataset):
+    def __init__(self, tokenizer, TEMPLATE):
+        super().__init__()
+        rte = load_dataset("glue", "rte", split="validation")
+        self.items = []
+
+        for sample in rte:
+            prompt = TEMPLATE.render(
+                sent1=sample["sentence1"],
+                sent2=sample["sentence2"],
+            ).strip()
+
+            # Tokenize and construct this sample
+            inputs = tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+            )
+            self.items.append(
+                {"sentence1": sample["sentence1"],
+                 "sentence2": sample["sentence2"],
+                 "prompt": prompt,
+                 "input_ids": inputs["input_ids"],
+                 "attention_mask": inputs["attention_mask"],
+                 "input_len": inputs["attention_mask"].shape[1],
+                 "label": ["Yes", "No"][1 - sample["label"]],
+                 }
+            )
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return self.items[index]
 
 
 class MRPCDataset(Dataset):
@@ -60,14 +163,18 @@ class MRPCDataset(Dataset):
         return self.items[index]
 
 
-class MRPCNegativeTask(AutoTask):
+class TwoSentenceClassificationTask(AutoTask):
     @staticmethod
     def get_display_name() -> str:
         return "mrpc-negative"
 
     def evaluate(self) -> None:
-        dataset_std = MRPCDataset(self.tokenizer, TEMPLATE_STD)
-        dataset_neg = MRPCDataset(self.tokenizer, TEMPLATE_NEG)
+        if dataset_name == 'imdb':
+            dataset = MNLIDataset(self.tokenizer, TEMPLATE)
+        elif dataset_name == 'rte':
+            dataset = RTEDataset(self.tokenizer, TEMPLATE)
+        else:
+            dataset = MRPCDataset(self.tokenizer, TEMPLATE)
 
         accuracy = 0
         consistency = 0
@@ -99,6 +206,7 @@ class MRPCNegativeTask(AutoTask):
         count = 0
         for sample_std, sample_neg in tqdm(zip(dataset_std, dataset_neg), desc=f"Evaluating {self.get_display_name()}"):
             count += 1
+
             def get_output(sample, label_list_ids):
                 # unbatched function
                 with torch.no_grad():

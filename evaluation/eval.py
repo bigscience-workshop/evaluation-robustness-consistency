@@ -41,6 +41,7 @@ class EvaluationArguments:
     data_dir: Optional[str] = field(default=None, metadata={"help": "Path to the local dataset folder"})
 
     do_sample: Optional[bool] = field(default=False, metadata={"help": "Whether to use sampling instead of greedy."})
+    use_multi_gpu: Optional[bool] = field(default=False, metadata={"help": "Whether to use multi gpus."})
     early_stopping: Optional[bool] = field(default=False,
                                            metadata={"help": "Whether to stop when the correct number of sample"})
     min_length: Optional[int] = field(
@@ -98,7 +99,8 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(eval_args.tokenizer_name or eval_args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    if "T0" in eval_args.model_name_or_path:  # in ["bigscience/T0_3B", "bigscience/T0"]:
+    if ("t5" in eval_args.model_name_or_path.lower()) or "t0" in (
+    eval_args.model_name_or_path.lower()):  # in ["bigscience/T0_3B", "bigscience/T0"]:
         MODEL_TYPE = AutoModelForSeq2SeqLM
     else:
         MODEL_TYPE = AutoModelForCausalLM
@@ -106,6 +108,8 @@ def main():
         eval_args.model_name_or_path,
         pad_token_id=tokenizer.eos_token,
     )
+    if eval_args.use_multi_gpu:
+        model.parallelize()
     model.config.pad_token_id = model.config.eos_token_id
     model.resize_token_embeddings(len(tokenizer))
     model.to(device)
