@@ -10,4 +10,6 @@ MRPC
 # Models 
 
 T0 (and its decendants)
-XGLM and its descendants
+XGLM and its descendants % https://huggingface.co/facebook/xglm-564M
+
+
