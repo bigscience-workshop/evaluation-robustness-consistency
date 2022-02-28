@@ -9,11 +9,9 @@ from transformers import AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoTokeni
 
 import sys
 
-sys.path.append('/home/infres/pcolombo/evaluation-robustness-consistency/evaluation/')
-sys.path.append('/home/infres/pcolombo/evaluation-robustness-consistency/')
-sys.path.append('/gpfswork/rech/tts/unm25jp/evaluation-robustness-consistency/')
-sys.path.append('/gpfswork/rech/tts/unm25jp/evaluation-robustness-consistency/evaluation/')
-
+sys.path.append(os.path.join(os.getcwd(), '/evaluation/'))
+sys.path.append(os.path.join(os.getcwd(), '/single-sentence-classification/'))
+sys.path.append(os.getcwd())
 import evaluation.tasks  # noqa: F401
 from evaluation.tasks.auto_task import AutoTask
 from evaluation.utils.log import get_logger
@@ -25,6 +23,9 @@ class EvaluationArguments:
     Arguments for any adjustable params in this evaluation script
     """
 
+    dataset_name: str = field(
+        metadata={"help": "The model checkpoint that we want to evaluate, could be name or the path."}
+    )
     model_name_or_path: str = field(
         metadata={"help": "The model checkpoint that we want to evaluate, could be name or the path."}
     )
@@ -100,7 +101,7 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
     if ("t5" in eval_args.model_name_or_path.lower()) or "t0" in (
-    eval_args.model_name_or_path.lower()):  # in ["bigscience/T0_3B", "bigscience/T0"]:
+            eval_args.model_name_or_path.lower()):  # in ["bigscience/T0_3B", "bigscience/T0"]:
         MODEL_TYPE = AutoModelForSeq2SeqLM
     else:
         MODEL_TYPE = AutoModelForCausalLM
@@ -132,7 +133,7 @@ def main():
             data_dir=eval_args.data_dir,
         )
         set_seed(train_args.seed)
-        task.evaluate()
+        task.evaluate(dataset_name=eval_args.dataset_name)
         task.save_metrics(output_dir, logger)
 
 
