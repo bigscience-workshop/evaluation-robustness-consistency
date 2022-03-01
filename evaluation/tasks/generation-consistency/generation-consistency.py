@@ -20,14 +20,8 @@ TEMPLATE_PARAPHRASE = Template(
 )
 
 TEMPLATE_CONFIRMATION = Template(
-    """Sentence 1: {{sent1}}
-Sentence 2: {{sent2}}
-Do Sentence 1 and Sentence 2 convey the same meaning? Yes or No?
-    """
+    """Sentence 1: {{sent1}} Sentence 2: {{sent2}} Do Sentence 1 and Sentence 2 convey the same meaning? Yes or No?"""
 )
-
-LABELS_LIST = ['Yes', 'No']  # first index should be the positive one
-
 
 class MRPCDataset(Dataset):
     def __init__(self, tokenizer):
@@ -70,46 +64,56 @@ class MRPCDataset(Dataset):
 
 
 class WMTEnglishDataset(Dataset):
-    def __init__(self, tokenizer, stride=512, max_len=1024, pair="kk-en"):
+    def __init__(self, tokenizer, pair="kk-en"):
         super().__init__()
+
+        self.languages = ['cs-en', 'kk-en', 'fi-en']  # , 'gu-en','de-en', 'kk-en', 'lt-en', 'ru-en', 'zh-en', 'fr-en']
+        self.filter = 150
+
         assert "en" in pair, f"Expected `pair` to contain English, but got {pair} instead"
-        wmt = load_dataset("wmt19", pair, split="validation")["translation"]
-        text_list = [item["en"] for item in wmt]
-        text = " ".join(text_list)
-        input_ids = tokenizer(text, return_tensors="pt", verbose=False).input_ids.squeeze()
-        self.input_ids = input_ids.unfold(size=max_len, step=stride, dimension=-1)
+        wmt_ds = dict()
+        for pair in self.languages:
+            print('Loading', pair)
+            wmt_ds[pair] = load_dataset("wmt19", pair, split="validation")["translation"]
 
         self.items = []
         self.labels2id = {
             "Yes": 0, 'No': 1
         }
         self.id2labels = {v: k for k, v in self.labels2id.items()}
-        for sample in wmt:
-            prompt = TEMPLATE_CONFIRMATION.render(
-                sent1=sample["text"],
-            )
+        for key, wmt in wmt_ds.items():
+            key_1 = key.split('-')[0]
+            key_2 = key.split('-')[1]
+            for index, sample in enumerate(wmt):
+                if index == self.filter:
+                    break
+                prompt = TEMPLATE_CONFIRMATION.render(
+                    sent1=sample["text"],
+                )
 
-            # Tokenize and construct this sample
-            inputs = tokenizer(
-                prompt,
-                return_tensors="pt",
-                truncation=True,
-            )
-            self.items.append(
-                {
-                    "prompt": prompt,
-                    "label": sample["reference"],
-                    "input_ids": inputs["input_ids"],
-                    "attention_mask": inputs["attention_mask"],
-                    "input_len": inputs["attention_mask"].shape[1],
-                }
-            )
+                # Tokenize and construct this sample
+                inputs = tokenizer(
+                    prompt,
+                    return_tensors="pt",
+                    truncation=True,
+                )
+                self.items.append(
+                    {"sentence1": sample[key_1],
+                     "sentence2": sample[key_2],
+                     "prompt": prompt,
+                     "pair": key,
+                     "input_ids": inputs["input_ids"],
+                     "attention_mask": inputs["attention_mask"],
+                     "input_len": inputs["attention_mask"].shape[1],
+                     "label": "Yes",  # TODO voir les details
+                     }
+                )
 
     def __len__(self):
-        return len(self.input_ids)
+        return len(self.items)
 
     def __getitem__(self, index):
-        return self.input_ids[index]
+        return self.items[index]
 
 
 class GenerationTask(AutoTask):
@@ -149,7 +153,7 @@ class GenerationTask(AutoTask):
                 torch.tensor([logits[:, -1, label_id] for label_id in list(LABELS_LIST.values())])).tolist()
             return sofmax_results
 
-        def get_sequences(sample):
+        def get_sequences(sample):  # TODO adapt for nmt
             with torch.no_grad():
                 output = self.model.generate(
                     input_ids=sample["input_ids"].to(self.device), output_scores=True,

@@ -86,7 +86,7 @@ class WMTEnglishDataset(Dataset):
                 )
 
     def __len__(self):
-        return len(self.input_ids)
+        return len(self.items)
 
     def __getitem__(self, index):
         return self.items[index]
